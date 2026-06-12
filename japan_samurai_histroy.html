@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>武士的時代 — 日本戰國興亡動態地圖</title>
+<meta name="description" content="像看遊戲一樣看懂日本武士700年：源平合戰、元寇、戰國群雄、關原之戰、江戶幕府。家紋＋勢力範圍＋動態進攻路線，一看就懂。">
+<style>
+:root{
+  --sea:#d3e2ec; --ink:#22252b; --paper:#faf6ea;
+  --atk:#d64541; --ret:#3f6db3; --bet:#8e44ad;
+  --gold:#e6b73c; --bg:#171a21; --panel:#21252e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:#e8e4d8;font-family:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;background:linear-gradient(90deg,#1c2027,#2a2018);border-bottom:2px solid #574a2c}
+header h1{font-size:20px;letter-spacing:2px}
+header .sub{font-size:12px;color:#b8ad8f}
+#eraChip{margin-left:auto;font-size:14px;font-weight:700;padding:5px 14px;border-radius:20px;background:#574a2c;color:#ffe9b8;white-space:nowrap}
+main{flex:1;display:flex;align-items:flex-start;gap:14px;padding:14px;max-width:1280px;width:100%;margin:0 auto}
+#mapWrap{flex:1;min-width:0;background:var(--sea);border-radius:12px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.5);position:relative}
+#map{display:block;width:100%;height:auto;aspect-ratio:1/1}
+#baseMap{opacity:.48;filter:grayscale(1) sepia(.75) brightness(1.18)}
+#side{width:330px;flex-shrink:0;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid #3a3f4b;border-radius:12px;padding:16px}
+#sceneYear{font-size:28px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums}
+#sceneTitle{font-size:18px;font-weight:800;margin:4px 0 10px;color:#fff}
+#sceneDesc{font-size:13.5px;line-height:1.75;color:#d6d0c0}
+#legend{font-size:12.5px;line-height:2;color:#c5bfae}
+#legend b{color:#fff}
+.lg{display:inline-block;width:26px;height:0;border-top:4px solid;vertical-align:middle;margin-right:6px;border-radius:2px}
+.lg.atk{border-color:var(--atk)} .lg.bet{border-color:var(--bet)} .lg.ret{border-color:var(--ret);border-top-style:dashed}
+.lgTer{display:inline-block;width:22px;height:13px;border-radius:4px;background:rgba(176,48,48,.3);border:1.5px dashed #b03030;vertical-align:middle;margin-right:6px}
+#castCard b{color:#fff}
+.crow{display:flex;align-items:center;gap:8px;font-size:13px;padding:3.5px 0;border-bottom:1px dashed #333a47;color:#d6d0c0}
+.crow:last-child{border-bottom:none}
+.cdot{width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1.5px solid rgba(255,255,255,.5)}
+.cage{margin-left:auto;color:#e6b73c;font-weight:700;font-variant-numeric:tabular-nums}
+.cnote{font-size:11px;color:#8b8472;margin-top:6px}
+footer{padding:10px 20px;text-align:center;font-size:12px;color:#8b8472}
+footer a{color:#cdb56a}
+/* controls */
+#controls{display:flex;align-items:center;gap:10px;padding:0 14px 14px;max-width:1280px;width:100%;margin:0 auto}
+button.ctl{background:#2e3340;border:1px solid #4a5163;color:#fff;border-radius:10px;padding:10px 16px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+button.ctl:hover{background:#3b4252}
+button.ctl.play{background:#574a2c;border-color:#7a6535;color:#ffe9b8;min-width:110px}
+#dots{flex:1;display:flex;gap:3px;align-items:center;flex-wrap:wrap}
+#dots button{flex:1;min-width:10px;height:18px;border-radius:5px;border:none;background:#3a3f4b;cursor:pointer;position:relative;padding:0}
+#dots button.on{background:var(--gold)}
+#dots button.past{background:#6e6342}
+#dots button:hover{outline:2px solid #cdb56a}
+#prog{position:absolute;left:0;bottom:0;height:4px;background:var(--gold);width:0;z-index:5}
+#sceneNum{font-size:13px;color:#9a937e;white-space:nowrap}
+/* svg animation */
+#dyn{transition:opacity .25s ease}
+#dyn.hide{opacity:0}
+.draw{stroke-dasharray:100;stroke-dashoffset:100;animation:draw .9s ease .35s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.retA{stroke-dasharray:7 5;animation:march .8s linear infinite}
+@keyframes march{to{stroke-dashoffset:-12}}
+.fx{transform-box:fill-box;transform-origin:center;animation:pop .7s cubic-bezier(.2,1.6,.4,1) .9s both}
+@keyframes pop{0%{transform:scale(0)}100%{transform:scale(1)}}
+.deadA{animation:dead .6s ease 1.1s both}
+@keyframes dead{0%{opacity:1}30%{opacity:.4}60%{opacity:1}100%{opacity:.9}}
+.ter{animation:terIn .9s ease .15s both}
+@keyframes terIn{from{opacity:0}to{opacity:1}}
+.alabel{paint-order:stroke;stroke:#fff;stroke-width:3px;font-weight:800}
+@media(max-width:900px){
+  main{flex-direction:column}
+  #side{width:100%}
+  header h1{font-size:16px} .sub{display:none}
+  #controls{flex-wrap:wrap}
+  #dots{flex:1 1 100%;order:10}
+  button.ctl{flex:1;padding:9px 6px;font-size:13.5px;white-space:nowrap}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>🗾 武士的時代</h1>
+  <div class="sub">日本武士700年興亡・動態地圖｜源平 → 蒙古襲來 → 戰國 → 關原 → 江戶</div>
+  <div id="eraChip">源平合戰</div>
+</header>
+
+<main>
+  <div id="mapWrap">
+    <svg id="map" viewBox="40 210 760 760" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="gray"><feColorMatrix type="saturate" values="0.1"/></filter>
+        <filter id="sh" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-opacity="0.35"/>
+        </filter>
+        <marker id="m-atk" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#d64541"/></marker>
+        <marker id="m-bet" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#8e44ad"/></marker>
+        <marker id="m-ret" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#3f6db3"/></marker>
+      </defs>
+
+      <!-- 真實日本地圖（向量 SVG，淡色打底） -->
+      <image id="baseMap" href="japan-map2.svg" x="-9.2" y="-7.2" width="1016.4" height="1016.4"/>
+
+      <!-- 動態層 -->
+      <g id="dyn">
+        <g id="gTer"></g>
+        <g id="gLm"></g>
+        <g id="gArrows"></g>
+        <g id="gFx"></g>
+        <g id="gActors"></g>
+      </g>
+    </svg>
+    <div id="prog"></div>
+  </div>
+
+  <div id="side">
+    <div class="card">
+      <div id="sceneYear">1180</div>
+      <div id="sceneTitle">—</div>
+      <div id="sceneDesc">—</div>
+    </div>
+    <div class="card" id="legend">
+      <b>圖例</b><br>
+      <span class="lg atk"></span>進攻　<span class="lg bet"></span>叛變　<span class="lg ret"></span>撤退／敗走<br>
+      <span class="lgTer"></span>勢力範圍（約略示意）<br>
+      ✕＋灰色＝<b>滅亡</b>　🏳臣服　👑天下人　⚔️合戰<br>
+      圓徽＝<b>家紋</b>（每個武士家族的徽章）
+    </div>
+    <div class="card" id="castCard">
+      <b>本幕登場人物</b>
+      <div id="castList"></div>
+      <div class="cnote">※ 年齡為當年約略歲數</div>
+    </div>
+  </div>
+</main>
+
+<div id="controls">
+  <button class="ctl" id="btnPrev">◀ 上一幕</button>
+  <button class="ctl play" id="btnPlay">▶ 自動播放</button>
+  <button class="ctl" id="btnNext">下一幕 ▶</button>
+  <div id="dots"></div>
+  <div id="sceneNum">1 / 34</div>
+</div>
+
+<footer>
+  💡 鍵盤 ←→ 可切換劇情、空白鍵播放｜整個資料夾拖進 <a href="https://app.netlify.com/drop" target="_blank">Netlify Drop</a> 或放上 GitHub Pages 立刻變成網址，分享給朋友！
+</footer>
+
+<script>
+"use strict";
+/* ================= 家紋 ================= */
+const plate=(c,bg)=>`<circle r="19" fill="${bg||'#faf6ea'}" stroke="${c}" stroke-width="2.2"/>`;
+const kanji=(ch,c)=>plate(c)+`<text y="${ch.length>1?5:6}" text-anchor="middle" font-size="${ch.length>1?13:17}" font-weight="900" fill="${c}" font-family="serif">${ch}</text>`;
+function flower(x,y,c){let s=`<circle cx="${x}" cy="${y}" r="1.7" fill="${c}"/>`;
+  for(let i=0;i<5;i++){const a=i/5*6.283-1.57;s+=`<circle cx="${(x+Math.cos(a)*3.2).toFixed(1)}" cy="${(y+Math.sin(a)*3.2).toFixed(1)}" r="1.6" fill="${c}"/>`}return s}
+const MON={
+  minamoto(){const c='#3b5fa0';return plate(c)+
+    `<g fill="${c}"><ellipse cx="0" cy="-7" rx="2.6" ry="8"/>
+     <ellipse cx="-7.5" cy="-5" rx="2.6" ry="7.5" transform="rotate(-38 -7.5 -5)"/>
+     <ellipse cx="7.5" cy="-5" rx="2.6" ry="7.5" transform="rotate(38 7.5 -5)"/></g>`+
+    flower(-8,8,c)+flower(0,10.5,c)+flower(8,8,c)},
+  taira(){const c='#b03030';return plate(c)+
+    `<g fill="${c}"><ellipse cx="0" cy="3" rx="2" ry="8"/><circle cx="0" cy="-7" r="2.6"/>
+     <path d="M-2,-4 C-14,-15 -19,-2 -8,5 Q-4,7 -2,3 Z"/>
+     <path d="M2,-4 C14,-15 19,-2 8,5 Q4,7 2,3 Z"/>
+     <path d="M-2,6 C-11,13 -4,16 -1,9 Z"/><path d="M2,6 C11,13 4,16 1,9 Z"/></g>
+     <g stroke="${c}" stroke-width="1.3" fill="none"><path d="M-1,-9 Q-6,-15 -9,-14"/><path d="M1,-9 Q6,-15 9,-14"/></g>`},
+  hojo(){const c='#2f3640';return plate(c)+`<g fill="${c}">
+     <path d="M0,-13 L7,-1 L-7,-1 Z"/><path d="M-8,1 L-1,13 L-15,13 Z"/><path d="M8,1 L15,13 L1,13 Z"/></g>`},
+  ashikaga(){const c='#2f3640';return plate(c)+
+    `<g fill="${c}"><rect x="-13" y="-9.5" width="26" height="6.5" rx="1"/><rect x="-13" y="3" width="26" height="6.5" rx="1"/></g>`},
+  kiku(){const c='#b8860b';let s=plate(c);
+    for(let i=0;i<16;i++){const a=i/16*6.283;s+=`<ellipse cx="${(Math.cos(a)*10).toFixed(1)}" cy="${(Math.sin(a)*10).toFixed(1)}" rx="5.5" ry="2.1" fill="${c}" transform="rotate(${(a*57.3).toFixed(0)} ${(Math.cos(a)*10).toFixed(1)} ${(Math.sin(a)*10).toFixed(1)})"/>`}
+    return s+`<circle r="4.5" fill="${c}"/><circle r="2" fill="#faf6ea"/>`},
+  takeda(){const c='#8a1f1f';const d=(x,y)=>`<path d="M${x},${y-4} L${x+5.7},${y} L${x},${y+4} L${x-5.7},${y} Z" fill="${c}"/>`;
+    return plate(c)+d(-6,-4.5)+d(6,-4.5)+d(-6,4.5)+d(6,4.5)},
+  oda(){const c='#2f3640';return plate(c)+
+    `<g fill="${c}"><circle cx="0" cy="-9.5" r="7"/><circle cx="9.5" cy="0" r="7"/><circle cx="0" cy="9.5" r="7"/><circle cx="-9.5" cy="0" r="7"/>
+     <circle cx="6.7" cy="-6.7" r="5"/><circle cx="6.7" cy="6.7" r="5"/><circle cx="-6.7" cy="6.7" r="5"/><circle cx="-6.7" cy="-6.7" r="5"/></g>
+     <circle r="8.5" fill="#faf6ea"/><ellipse rx="7" ry="4.6" fill="${c}"/><ellipse rx="4.6" ry="2.2" fill="#faf6ea"/>`},
+  tokugawa(){const c='#1e5631';const leaf=`<g><path d="M0,5.5 C-7,4 -9.5,-3 -5,-7.5 C-2,-10 2,-10 5,-7.5 C9.5,-3 7,4 0,5.5 Z" fill="${c}"/><line x1="0" y1="5" x2="0" y2="-7" stroke="#faf6ea" stroke-width="1.1"/></g>`;
+    return plate(c)+`<circle r="15" fill="none" stroke="${c}" stroke-width="2.4"/>
+     <g transform="translate(0,-7.5)">${leaf}</g>
+     <g transform="rotate(120) translate(0,-7.5)">${leaf}</g>
+     <g transform="rotate(240) translate(0,-7.5)">${leaf}</g>`},
+  toyotomi(){const c='#7a5c12';const spike=(x,n)=>{let s=`<line x1="${x}" y1="1" x2="${x}" y2="${1-n*3}" stroke="${c}" stroke-width="1.4"/>`;
+      for(let i=1;i<=n;i++)s+=`<circle cx="${x}" cy="${1-i*3}" r="1.5" fill="${c}"/>`;return s};
+    return plate(c)+spike(0,4)+spike(-7,3)+spike(7,3)+
+    `<g fill="${c}"><ellipse cx="0" cy="9" rx="4" ry="7.5"/>
+     <ellipse cx="-8" cy="8" rx="3.6" ry="7" transform="rotate(-34 -8 8)"/>
+     <ellipse cx="8" cy="8" rx="3.6" ry="7" transform="rotate(34 8 8)"/></g>`},
+  mori(){const c='#2f3640';return plate(c)+
+    `<rect x="-13" y="-11" width="26" height="5" rx="1.5" fill="${c}"/>
+     <circle cx="0" cy="-1" r="4.3" fill="${c}"/><circle cx="-7" cy="8.5" r="4.3" fill="${c}"/><circle cx="7" cy="8.5" r="4.3" fill="${c}"/>`},
+  shimazu(){const c='#2f3640';return plate(c)+
+    `<circle r="14.5" fill="none" stroke="${c}" stroke-width="2.6"/>
+     <rect x="-2.3" y="-14.5" width="4.6" height="29" fill="${c}"/><rect x="-14.5" y="-2.3" width="29" height="4.6" fill="${c}"/>`},
+  sanada(){const c='#2f3640';let s=plate(c);
+    [[-9.5,-6],[0,-6],[9.5,-6],[-9.5,6],[0,6],[9.5,6]].forEach(p=>{
+      s+=`<circle cx="${p[0]}" cy="${p[1]}" r="4.4" fill="${c}"/><rect x="${p[0]-1.5}" y="${p[1]-1.5}" width="3" height="3" fill="#faf6ea"/>`});return s},
+  akechi(){const c='#4a5fb0';let s=plate(c);
+    for(let i=0;i<5;i++)s+=`<g transform="rotate(${i*72})"><path d="M0,-14 C5.5,-11 6,-4 0,-1.5 C-6,-4 -5.5,-11 0,-14 Z" fill="${c}"/></g>`;
+    return s+`<circle r="2.4" fill="#faf6ea"/>`},
+  kobayakawa(){const c='#2f3640';let s=plate(c);
+    for(let i=0;i<3;i++)s+=`<g transform="rotate(${i*120})"><path d="M0,-13 C8,-13 12.5,-6 11,2 C8,-3 4,-4.5 0.5,-3 C-4,-1.5 -6,-9 0,-13 Z" fill="${c}"/><circle cx="1.5" cy="-7.5" r="4.6" fill="${c}"/></g>`;
+    return s},
+  hosokawa(){const c='#2f3640';let s=plate(c)+`<circle r="5.6" fill="${c}"/>`;
+    for(let i=0;i<8;i++){const a=i/8*6.283;s+=`<circle cx="${(Math.cos(a)*11).toFixed(1)}" cy="${(Math.sin(a)*11).toFixed(1)}" r="2.9" fill="${c}"/>`}return s},
+  uesugi(){const b='#355e3b',s='#5b4636';let m=plate(b)+`<circle r="14.5" fill="none" stroke="${b}" stroke-width="2.4"/>`;
+    for(let i=0;i<6;i++){const a=i/6*6.283+.5;m+=`<ellipse cx="${(Math.cos(a)*14.5).toFixed(1)}" cy="${(Math.sin(a)*14.5).toFixed(1)}" rx="3.6" ry="1.5" fill="${b}" transform="rotate(${(a*57.3+90).toFixed(0)} ${(Math.cos(a)*14.5).toFixed(1)} ${(Math.sin(a)*14.5).toFixed(1)})"/>`}
+    return m+`<circle cx="-3" cy="1" r="4.6" fill="${s}"/><circle cx="2.5" cy="-3" r="3" fill="${s}"/><path d="M0,3 L8,6 L1,7 Z" fill="${s}"/><circle cx="3.4" cy="-3.8" r=".8" fill="#fff"/>`},
+  date(){const b='#1f3b73',s='#1f3b73';let m=plate(b)+`<circle r="14.5" fill="none" stroke="${b}" stroke-width="2.4"/>`;
+    for(let i=0;i<6;i++){const a=i/6*6.283;m+=`<ellipse cx="${(Math.cos(a)*14.5).toFixed(1)}" cy="${(Math.sin(a)*14.5).toFixed(1)}" rx="3.6" ry="1.5" fill="${b}" transform="rotate(${(a*57.3+90).toFixed(0)} ${(Math.cos(a)*14.5).toFixed(1)} ${(Math.sin(a)*14.5).toFixed(1)})"/>`}
+    return m+`<circle cx="-3" cy="1" r="4.6" fill="${s}"/><circle cx="2.5" cy="-3" r="3" fill="${s}"/><path d="M0,3 L8,6 L1,7 Z" fill="${s}"/>`},
+  ishida(){const c='#2f3640';return plate(c)+
+    `<g font-family="serif" font-weight="900" fill="${c}" text-anchor="middle">
+     <text y="-5" font-size="9">大一</text><text y="4.5" font-size="9">大万</text><text y="14" font-size="9">大吉</text></g>`},
+  imagawa(){const c='#b03030';return plate(c)+
+    `<path d="M-11,9 L-7,-9 L7,-9 L11,9 Z" fill="${c}"/>
+     <g fill="#faf6ea"><rect x="-7" y="1" width="2.4" height="8"/><rect x="-2.4" y="1" width="2.4" height="8"/><rect x="2.2" y="1" width="2.4" height="8"/></g>`},
+  chosokabe(){const c='#2f6b4f';let s=plate(c);
+    for(let i=0;i<3;i++)s+=`<g transform="rotate(${i*120}) translate(0,-8)"><circle cx="-3.4" cy="0" r="4" fill="${c}"/><circle cx="3.4" cy="0" r="4" fill="${c}"/><circle cx="0" cy="-3.4" r="4" fill="${c}"/></g>`;
+    return s+`<circle r="2" fill="#faf6ea"/>`},
+  yamana(){return kanji('山','#6b4226')},
+  nitta(){return kanji('新','#3b5fa0')},
+  fukushima(){return kanji('福','#a8551f')},
+  kuroda(){return kanji('黑','#2f3640')},
+  konishi(){return kanji('小西','#5a4a8a')},
+  ukita(){return kanji('兒','#7a3050')},
+  otani(){return kanji('谷','#456b6b')},
+  mongol(){return kanji('元','#444')},
+  sue(){return kanji('陶','#555')},
+  shibata(){return kanji('柴','#555')},
+  torii(){return kanji('鳥','#7a4a2a')},
+};
+const CLR={minamoto:'#3b5fa0',taira:'#b03030',hojo:'#2f3640',ashikaga:'#2f3640',takeda:'#8a1f1f',
+  oda:'#444',tokugawa:'#1e5631',toyotomi:'#7a5c12',mori:'#2f3640',shimazu:'#2f3640',sanada:'#8a1f1f',
+  akechi:'#4a5fb0',kobayakawa:'#2f3640',hosokawa:'#2f3640',uesugi:'#355e3b',date:'#1f3b73',ishida:'#2f3640',
+  imagawa:'#b03030',chosokabe:'#2f6b4f',yamana:'#6b4226',nitta:'#3b5fa0',fukushima:'#a8551f',
+  kuroda:'#2f3640',konishi:'#5a4a8a',ukita:'#7a3050',otani:'#456b6b',kiku:'#b8860b',mongol:'#444',sue:'#555',shibata:'#555',torii:'#7a4a2a'};
+
+/* 出生年（登場人物年齡表用） */
+const BIRTH={'平清盛':1118,'源賴朝':1147,'源義經':1159,'木曾義仲':1154,'北條義時':1163,'後鳥羽上皇':1180,
+ '北條時宗':1251,'足利尊氏':1305,'後醍醐天皇':1288,'新田義貞':1301,'足利義滿':1358,'細川勝元':1430,'山名宗全':1404,
+ '毛利元就':1497,'陶晴賢':1521,'武田信玄':1521,'上杉謙信':1530,'今川義元':1519,'織田信長':1534,
+ '松平元康':1543,'德川家康':1543,'豐臣秀吉':1537,'羽柴秀吉':1537,'明智光秀':1528,'武田勝賴':1546,'足利義昭':1537,
+ '柴田勝家':1522,'毛利輝元':1553,'石田三成':1560,'豐臣秀賴':1593,'島津義弘':1535,'小西行長':1558,'宇喜多秀家':1572,
+ '大谷吉繼':1559,'小早川秀秋':1582,'毛利秀元':1579,'黑田長政':1568,'福島正則':1561,'德川秀忠':1579,
+ '真田昌幸':1547,'真田幸村':1567,'鳥居元忠':1539,'上杉景勝':1556,'伊達政宗':1567};
+
+/* ================= 勢力範圍（約略多邊形，地圖座標已實測校準） ================= */
+const R={
+  KANTO:[[545,600],[608,605],[618,650],[575,675],[538,648]],
+  TOHOKU:[[555,440],[635,445],[648,500],[612,540],[560,532],[545,485]],
+  ECHIGO:[[435,565],[500,535],[535,520],[545,545],[495,580],[450,600]],
+  SHINANO:[[455,580],[502,590],[540,635],[535,665],[480,662],[450,620]],
+  TOKAI_E:[[450,688],[545,672],[556,698],[490,715],[448,710]],
+  OWARI:[[400,665],[440,675],[438,705],[405,698]],
+  KINKI:[[310,660],[360,655],[380,690],[355,720],[318,718],[300,690]],
+  CHUGOKU:[[115,705],[175,628],[260,645],[290,680],[260,702],[170,710]],
+  SHIKOKU:[[165,755],[300,740],[310,770],[250,815],[175,795]],
+  KYUSHU_S:[[85,830],[150,830],[160,875],[130,915],[85,915],[70,875]],
+  WEST:[[60,760],[150,705],[290,660],[370,680],[355,725],[250,800],[130,890],[55,830]],
+  EAST_BAKUFU:[[585,330],[645,338],[652,455],[625,648],[580,672],[540,640],[545,470]],
+  NANCHO:[[330,705],[362,702],[368,742],[345,762],[322,728]],
+  HOKUCHO:[[308,655],[362,650],[375,685],[352,712],[315,710],[298,682]],
+  MUROMACHI:[[150,650],[290,648],[420,640],[560,620],[615,640],[570,675],[430,700],[300,720],[170,712]],
+  TOYOTOMI:[[60,758],[160,700],[290,650],[420,640],[545,665],[550,695],[420,715],[250,800],[130,885],[55,830]],
+  TOKUGAWA_ALL:[[60,758],[200,680],[330,650],[440,620],[520,560],[560,440],[595,330],[648,340],[652,470],[622,648],[575,680],[430,712],[250,800],[130,885],[55,830]],
+  EAST_ARMY:[[455,590],[615,610],[622,652],[560,688],[470,668],[440,625]],
+  WEST_ARMY:[[120,700],[180,630],[290,650],[378,672],[360,722],[250,800],[160,760],[125,720]],
+};
+
+/* ================= 劇本 ================= */
+const FV=[40,210,760,760];           // 本州〜九州 全景
+const SEA=[{x:300,y:470,t:'日 本 海',sea:1},{x:660,y:780,t:'太 平 洋',sea:1}];
+const KYO={x:338,y:696,t:'京都',ico:'🏯'};
+const KAM={x:553,y:670,t:'鎌倉',ico:'🏯'};
+const OSA={x:322,y:722,t:'大坂',ico:'🏯'};
+const EDO={x:553,y:658,t:'江戶',ico:'🏯'};
+const SCENES=[
+/*1*/{y:'1180',era:'源平合戰',t:'源平合戰爆發',
+ d:'武士登上歷史舞台！平清盛把持朝政、權傾天下，勢力遍布西日本；被流放到關東的源賴朝舉兵反抗，木曾義仲也在信濃起兵——源氏 vs 平家，兩大武士家族的全面戰爭開始。',
+ v:FV,lm:[KYO,...SEA],
+ ter:[{pts:R.WEST,c:'#b03030',t:'平家勢力',tx:170,ty:790},{pts:R.KANTO,c:'#3b5fa0',t:'源氏勢力',tx:585,ty:592}],
+ a:[{m:'taira',n:'平清盛',x:338,y:675,sz:1.1},{m:'minamoto',n:'源賴朝',x:575,y:632,sz:1.1},{m:'minamoto',n:'木曾義仲',x:462,y:628,sz:.85}]},
+
+/*2*/{y:'1184',era:'源平合戰',t:'天才・源義經登場',
+ d:'源賴朝派出弟弟源義經——戰術天才連戰連勝：一之谷從懸崖背後奇襲、屋島閃電突擊，平家被一路趕向西邊的海上。',
+ v:[200,590,300,300],lm:[KYO,{x:305,y:712,t:'一之谷'},{x:272,y:758,t:'屋島'}],
+ ter:[{pts:R.SHIKOKU,c:'#b03030',t:'平家',tx:200,ty:790}],
+ a:[{m:'minamoto',n:'源義經',x:345,y:663,sz:1},{m:'taira',n:'平家',x:272,y:780,st:'weak',tag:{t:'節節敗退',c:'#d35400'}}],
+ ar:[{p:[[338,675],[308,697]],c:'atk',lbl:'一之谷'},{p:[[300,704],[278,740]],c:'atk',lbl:'屋島'}],
+ fx:[{x:305,y:700,e:'⚔️'},{x:276,y:736,e:'⚔️',s:.8}]},
+
+/*3*/{y:'1185',era:'源平合戰',t:'壇之浦之戰 — 平家滅亡',
+ d:'最終決戰在關門海峽！源義經率水軍猛攻，利用潮流逆轉戰局：平家軍全滅、幼帝安德天皇沉入海中。稱霸一時的平家，就此從歷史上消失。',
+ v:[40,610,280,280],lm:[{x:112,y:734,t:'壇之浦'}],
+ a:[{m:'minamoto',n:'源義經',x:196,y:700,sz:1},{m:'taira',n:'平家',x:118,y:714,st:'dead'}],
+ ar:[{p:[[182,704],[138,712]],c:'atk',w:1.2}],
+ fx:[{x:133,y:708,e:'⚔️'},{x:106,y:726,e:'🌊',s:.8}]},
+
+/*4*/{y:'1192',era:'鎌倉時代',t:'鎌倉幕府成立',
+ d:'源賴朝就任「征夷大將軍」，在鎌倉建立日本第一個武士政權。天皇朝廷留在京都，實權落入武士手中——往後快700年的「幕府時代」由此開始。',
+ v:FV,lm:[KYO,KAM,...SEA],
+ ter:[{pts:R.EAST_BAKUFU,c:'#3b5fa0',t:'幕府直接支配',tx:585,ty:500},{pts:R.HOKUCHO,c:'#b8860b',t:'朝廷',tx:318,ty:688}],
+ a:[{m:'minamoto',n:'源賴朝',x:560,y:645,st:'win',sz:1.2},{m:'hojo',n:'北條氏',x:525,y:658,sz:.75,tag:{t:'幕後輔佐',c:'#666'}}]},
+
+/*5*/{y:'1221',era:'鎌倉時代',t:'承久之亂 — 武士壓倒朝廷',
+ d:'源氏將軍三代而絕，後鳥羽上皇看準時機舉兵討幕——結果幕府執權北條義時反手派19萬大軍上洛，一個月內輾壓朝廷軍，上皇被流放到隱岐孤島。從此武士政權正式凌駕天皇朝廷之上。',
+ v:FV,lm:[KYO,KAM,...SEA],
+ ter:[{pts:R.EAST_BAKUFU,c:'#2f3640',t:'鎌倉幕府（北條執權）',tx:600,ty:500}],
+ a:[{m:'hojo',n:'北條義時',x:560,y:645,sz:1.1},{m:'kiku',n:'後鳥羽上皇',x:336,y:676,st:'weak',tag:{t:'戰敗・流放隱岐',c:'#d35400'}}],
+ ar:[{p:[[540,652],[360,678]],c:'atk',w:1.3,lbl:'19萬大軍上洛'}],
+ fx:[{x:352,y:680,e:'⚔️'}]},
+
+/*6*/{y:'1274・1281',era:'鎌倉時代',t:'元寇 — 蒙古襲來',
+ d:'世界最強的蒙古帝國兩度跨海來襲！執權北條時宗動員全國武士在博多灣築起石壘拚死防守，加上兩次颱風重創元軍艦隊——後世稱之為「神風」。國難擋住了，但幕府拿不出土地獎賞奮戰的武士，埋下滅亡的種子。',
+ v:[0,580,420,420],lm:[{x:95,y:768,t:'博多'},{x:112,y:730,t:'壇之浦'}],
+ a:[{m:'mongol',n:'元・高麗軍',x:45,y:690,sz:1.05},{m:'hojo',n:'北條時宗',x:135,y:782,sz:.95}],
+ ar:[{p:[[55,705],[92,742]],c:'atk',w:1.4,lbl:'14萬大軍・4400艘'},{p:[[35,732],[82,760]],c:'atk',w:1.1}],
+ fx:[{x:95,y:750,e:'⚔️'},{x:60,y:725,e:'🌀',s:1.3},{x:48,y:764,e:'🌊'}]},
+
+/*7*/{y:'1333',era:'鎌倉時代',t:'鎌倉幕府滅亡',
+ d:'元寇之後幕府發不出恩賞，全國武士窮困又不滿。後醍醐天皇抓住人心號召倒幕：足利尊氏攻陷幕府在京都的據點六波羅，新田義貞直搗鎌倉——掌權百餘年的北條一族在烈火中集體自盡。但勝利者之間，馬上就要翻臉……',
+ v:FV,lm:[KYO,KAM,...SEA],
+ a:[{m:'hojo',n:'北條氏',x:560,y:648,st:'dead'},{m:'nitta',n:'新田義貞',x:555,y:608,sz:.9},{m:'ashikaga',n:'足利尊氏',x:385,y:662,sz:1},{m:'kiku',n:'後醍醐天皇',x:346,y:712,sz:.85,tag:{t:'號召倒幕',c:'#b8860b'}}],
+ ar:[{p:[[557,620],[560,636]],c:'atk'},{p:[[374,668],[352,682]],c:'atk'}],
+ fx:[{x:565,y:638,e:'🔥'}]},
+
+/*7b*/{y:'1334-36',era:'建武新政',t:'建武新政 — 天皇親政的失敗',
+ d:'打倒幕府後，後醍醐天皇親自掌政，史稱「建武新政」——但論功行賞偏袒京都的公家貴族，在前線拚命的武士幾乎分不到土地，全國武士大失所望。最大功臣足利尊氏看準人心，在鎌倉舉起反旗：「跟著我，土地有賞！」武士們紛紛倒向尊氏。',
+ v:FV,lm:[KYO,KAM,...SEA],
+ a:[{m:'kiku',n:'後醍醐天皇',x:340,y:678,sz:1.05,tag:{t:'賞罰不公・武士寒心',c:'#d35400'}},{m:'ashikaga',n:'足利尊氏',x:558,y:648,sz:1.05,tag:{t:'武士們，跟我來！',c:'#8e44ad'}}],
+ ar:[{p:[[540,655],[365,680]],c:'bet',w:1.2,lbl:'舉兵反叛・進軍京都'}],
+ fx:[{x:460,y:645,e:'⚡',s:1.1}]},
+
+/*8*/{y:'1336',era:'南北朝',t:'南北朝分裂 — 一國兩帝',
+ d:'足利尊氏擊敗朝廷軍攻入京都，另立新天皇、開創室町幕府（北朝）；後醍醐天皇帶著三神器逃進吉野山中，堅稱自己才是正統（南朝）。一個日本、兩個天皇——全國武士各擁一邊混戰，這場分裂要整整57年後才會收場。',
+ v:[230,600,300,300],lm:[KYO,{x:346,y:730,t:'吉野'}],
+ ter:[{pts:R.HOKUCHO,c:'#2f3640',t:'北朝（足利）',tx:295,ty:650},{pts:R.NANCHO,c:'#b8860b',t:'南朝',tx:372,ty:752}],
+ a:[{m:'ashikaga',n:'足利尊氏',x:335,y:670,st:'win',sz:1.05},{m:'kiku',n:'後醍醐天皇',x:348,y:720,sz:.95,tag:{t:'逃往吉野',c:'#b8860b'}}],
+ ar:[{p:[[342,686],[347,708]],c:'ret'}]},
+
+/*9*/{y:'1392',era:'室町時代',t:'南北朝統一 — 金閣的時代',
+ d:'三代將軍足利義滿用政治手腕勸南朝天皇交還三神器——57年的南北朝就此統一！他興建金閣寺、開啟對明貿易，幕府登上頂峰。但代價埋在暗處：為了打內戰，幕府給了各國「守護大名」太大的兵權和地盤。幕府一旦衰弱，他們就會變成互相廝殺的戰國大名。',
+ v:FV,lm:[KYO,...SEA],
+ ter:[{pts:R.MUROMACHI,c:'#2f3640',t:'室町幕府與守護大名',tx:420,ty:625}],
+ a:[{m:'ashikaga',n:'足利義滿',x:338,y:675,st:'win',sz:1.2}],
+ fx:[{x:362,y:658,e:'✨'}]},
+
+/*10*/{y:'1467',era:'室町時代',t:'應仁之亂 — 戰國開幕',
+ d:'幕府的繼承糾紛引爆全國大亂鬥：細川勝元（東軍16萬）與山名宗全（西軍11萬）在京都打了11年，京都化為焦土、幕府威信掃地。從此誰拳頭大誰說話——弱肉強食的「戰國時代」開始！',
+ v:[240,590,200,200],lm:[{x:338,y:710,t:'京都',ico:'🏯'}],
+ a:[{m:'hosokawa',n:'細川勝元',x:356,y:674,sz:.95,tag:{t:'東軍',c:'#c8951f'}},{m:'yamana',n:'山名宗全',x:318,y:690,sz:.95,tag:{t:'西軍',c:'#3f6db3'}},{m:'ashikaga',n:'室町幕府',x:336,y:652,st:'weak',sz:.8,tag:{t:'威信掃地',c:'#d35400'}}],
+ ar:[{p:[[349,680],[329,687]],c:'atk'},{p:[[325,696],[345,689]],c:'atk',b:-.18}],
+ fx:[{x:337,y:690,e:'🔥'},{x:330,y:678,e:'⚔️',s:.8}]},
+
+/*11*/{y:'1543・1549',era:'戰國時代',t:'鐵砲與十字架 — 南蠻人來了',
+ d:'一艘葡萄牙船漂流到種子島，帶來改變日本戰爭規則的武器——鐵砲（火繩槍），日本工匠立刻量產。6年後傳教士沙勿略在鹿兒島登陸，基督教與南蠻貿易湧入九州。戰國的下半場，將由火藥決定勝負。',
+ v:[0,615,380,380],lm:[{x:150,y:948,t:'種子島'},{x:118,y:898,t:'鹿兒島'}],
+ a:[{m:'shimazu',n:'島津',x:115,y:858,sz:.95}],
+ ar:[{p:[[100,962],[140,940]],c:'atk',lbl:'🔫 鐵砲傳來',b:-.2},{p:[[60,840],[100,872]],c:'atk',lbl:'⛪ 基督教',b:.2}],
+ fx:[{x:148,y:932,e:'🔫',s:.9},{x:105,y:880,e:'⛪',s:.9},{x:70,y:908,e:'⛵',s:1}]},
+
+/*12*/{y:'1555',era:'戰國時代',t:'嚴島之戰 — 毛利崛起',
+ d:'安藝小領主毛利元就以4千兵力，把主君家篡位者陶晴賢的2萬大軍誘上狹小的神社之島——嚴島，趁暴風雨夜奇襲全殲。毛利從此鯨吞中國地方十國，成為西日本霸主。重點來了：像毛利這樣「以下犯上、憑實力搶位子」的戲碼，此刻正在全日本同時上演——下一幕看看1560年的天下版圖。',
+ v:[120,610,200,200],lm:[{x:205,y:712,t:'嚴島',ico:'⛩️'}],
+ a:[{m:'mori',n:'毛利元就',x:212,y:658,sz:1},{m:'sue',n:'陶晴賢',x:158,y:698,st:'dead',sz:.9}],
+ ar:[{p:[[210,672],[206,692]],c:'atk',lbl:'夜襲'},{p:[[172,700],[196,703]],c:'atk',b:-.2}],
+ fx:[{x:203,y:700,e:'⚔️'},{x:212,y:688,e:'⛈️',s:.7}]},
+
+/*13*/{y:'1560頃',era:'戰國時代',t:'群雄割據 — 戰國全盛',
+ d:'應仁之亂後將近百年，舊守護大名幾乎都被自己的家臣或在地豪族幹掉取代——這就是「下剋上」。地圖上全是憑實力搶來的地盤：東北伊達、關東北條、甲信武田、越後上杉、東海今川、西國毛利、四國長宗我部、九州島津。想稱霸天下就得帶兵「上洛」控制京都——第一個動手的，是兵力最雄厚的今川義元。',
+ v:FV,lm:[KYO,...SEA],
+ ter:[{pts:R.TOHOKU,c:'#1f3b73',t:'伊達',tx:632,ty:530},{pts:R.ECHIGO,c:'#355e3b',t:'上杉',tx:488,ty:560},{pts:R.SHINANO,c:'#8a1f1f',t:'武田',tx:492,ty:632},{pts:R.KANTO,c:'#555',t:'北條',tx:585,ty:630},{pts:R.TOKAI_E,c:'#b03030',t:'今川',tx:505,ty:697},{pts:R.OWARI,c:'#c06014',t:'織田',tx:420,ty:688},{pts:R.CHUGOKU,c:'#4a4a6b',t:'毛利',tx:195,ty:678},{pts:R.SHIKOKU,c:'#2f6b4f',t:'長宗我部',tx:235,ty:782},{pts:R.KYUSHU_S,c:'#333',t:'島津',tx:112,ty:872}],
+ a:[{m:'date',n:'伊達',x:592,y:478,sz:.8},{m:'uesugi',n:'上杉謙信',x:465,y:578,sz:.9},{m:'takeda',n:'武田信玄',x:500,y:628,sz:.9},
+    {m:'hojo',n:'北條',x:582,y:648,sz:.8},{m:'imagawa',n:'今川義元',x:508,y:684,sz:.85},{m:'oda',n:'織田信長',x:420,y:678,sz:.85},
+    {m:'mori',n:'毛利元就',x:205,y:668,sz:.85},{m:'chosokabe',n:'長宗我部',x:238,y:778,sz:.8},{m:'shimazu',n:'島津',x:115,y:868,sz:.8}]},
+
+/*14*/{y:'1560',era:'戰國時代',t:'桶狹間之戰',
+ d:'「東海道第一弓取」今川義元率2萬5千大軍西上，劍指京都；擋路的織田信長只有2千人。信長趁暴雨直撲本陣，一刀斬殺義元！戰國最大的下剋上逆轉勝。順帶一提：今川軍前鋒有位19歲的人質武將・松平元康，趁亂逃回老家三河獨立——他就是後來的德川家康。',
+ v:[340,600,200,200],lm:[{x:435,y:712,t:'桶狹間'}],
+ a:[{m:'imagawa',n:'今川義元',x:448,y:698,st:'dead',sz:.95},{m:'oda',n:'織田信長',x:408,y:678,sz:1},{m:'tokugawa',n:'松平元康',x:438,y:722,sz:.65,tag:{t:'今川方的人質武將',c:'#1e5631'}}],
+ ar:[{p:[[482,690],[462,695]],c:'atk',w:1.4,lbl:'2萬5千大軍'},{p:[[414,685],[438,696]],c:'atk',lbl:'奇襲！',b:-.25}],
+ fx:[{x:441,y:694,e:'⚔️'},{x:452,y:683,e:'⛈️',s:.7}]},
+
+/*15*/{y:'1553-64',era:'戰國時代',t:'川中島之戰 — 龍虎對決',
+ d:'「甲斐之虎」武田信玄 vs「越後之龍」上杉謙信，宿命之敵在川中島五度交鋒。第四次最慘烈：傳說謙信單騎衝入本陣，信玄舉軍配擋下刀劈。打了12年——平手。兩強互相牽制，反而讓西邊的信長安心壯大。',
+ v:[380,500,200,200],lm:[{x:478,y:614,t:'川中島'}],
+ a:[{m:'uesugi',n:'上杉謙信',x:458,y:570,sz:.95},{m:'takeda',n:'武田信玄',x:492,y:642,sz:.95}],
+ ar:[{p:[[462,582],[474,596]],c:'atk'},{p:[[488,630],[481,612]],c:'atk'}],
+ fx:[{x:477,y:602,e:'⚔️',s:1.1}]},
+
+/*16*/{y:'1568-73',era:'戰國時代',t:'信長上洛 — 室町幕府滅亡',
+ d:'信長擁立足利義昭進京（上洛），掌控天下中樞；義昭不甘當傀儡，暗中聯合武田、淺井、朝倉組成「信長包圍網」——全部被信長逐一擊破。1573年義昭被放逐，室町幕府滅亡。',
+ v:[270,580,260,260],lm:[KYO,{x:408,y:646,t:'岐阜',ico:'🏯'}],
+ a:[{m:'oda',n:'織田信長',x:408,y:660,sz:1.1},{m:'ashikaga',n:'足利義昭',x:338,y:678,st:'dead',sz:.85,tag:{t:'1573被放逐',c:'#d35400'}}],
+ ar:[{p:[[396,666],[356,676]],c:'atk',w:1.2,lbl:'上洛'}]},
+
+/*17*/{y:'1575',era:'戰國時代',t:'長篠之戰 — 火藥終結騎馬隊',
+ d:'武田勝賴（信玄之子）南下進攻德川。織田・德川聯軍在長篠設下馬防柵，用三千挺鐵砲輪番齊射，正面轟碎戰國最強的武田騎馬軍團——冷兵器時代在這一天被火藥終結。東邊最大的威脅解除，信長的霸業從此全速展開。',
+ v:[360,580,220,220],lm:[{x:468,y:704,t:'長篠'}],
+ a:[{m:'oda',n:'織田信長',x:408,y:662,sz:1.05},{m:'tokugawa',n:'德川家康',x:445,y:712,sz:.85},{m:'takeda',n:'武田勝賴',x:497,y:630,st:'weak',tag:{t:'騎馬隊全滅',c:'#d35400'},sz:.9}],
+ ar:[{p:[[420,670],[458,686]],c:'atk'},{p:[[452,704],[464,697]],c:'atk'},{p:[[490,642],[472,682]],c:'atk',b:-.15}],
+ fx:[{x:466,y:689,e:'⚔️'},{x:457,y:678,e:'💥',s:.8}]},
+
+/*17b*/{y:'1576-82',era:'戰國時代',t:'信長霸業頂點 — 四路同時擴張',
+ d:'信長在琵琶湖畔蓋起空前豪華的安土城，派軍團長四面出擊：柴田勝家攻北陸上杉、羽柴秀吉攻西邊毛利、明智光秀平定丹波後駐在京都附近、瀧川一益壓制關東，1582年3月武田家滅亡——天下眼看就要姓織田。請記住秀吉（在西邊前線）和光秀（在京都旁邊）此刻的位置，下一幕就懂了。',
+ v:[165,420,420,420],lm:[KYO,{x:362,y:686,t:'安土',ico:'🏯'},...SEA.slice(0,1)],
+ a:[{m:'oda',n:'織田信長',x:368,y:660,sz:1.15,tag:{t:'天下布武・即將統一',c:'#c8951f'}},{m:'toyotomi',n:'羽柴秀吉',x:255,y:686,sz:.8,tag:{t:'攻毛利中',c:'#7a5c12'}},{m:'akechi',n:'明智光秀',x:312,y:655,sz:.8},{m:'mori',n:'毛利輝元',x:195,y:680,sz:.7},{m:'uesugi',n:'上杉',x:458,y:560,sz:.7},{m:'takeda',n:'武田家',x:505,y:632,st:'dead',sz:.75}],
+ ar:[{p:[[352,650],[440,580]],c:'atk',lbl:'柴田→北陸'},{p:[[350,668],[280,686]],c:'atk',lbl:'秀吉→中國'},{p:[[380,668],[490,640]],c:'atk',lbl:'甲州征伐'}],
+ fx:[{x:500,y:622,e:'💥',s:.8}]},
+
+/*18*/{y:'1582',era:'戰國時代',t:'本能寺之變',
+ d:'信長下令光秀帶兵去西邊支援秀吉，自己輕裝住進京都本能寺準備親征——結果光秀的1萬3千大軍在半路突然調頭：「敵人，就在本能寺！」毫無防備的信長在烈焰中自盡，即將到手的天下一夕化為灰燼。光秀為何叛變，至今仍是戰國最大謎團。',
+ v:[240,590,200,200],lm:[{x:338,y:700,t:'本能寺',ico:'🏯'}],
+ a:[{m:'oda',n:'織田信長',x:340,y:682,st:'dead',sz:1},{m:'akechi',n:'明智光秀',x:308,y:660,sz:.95}],
+ ar:[{p:[[316,666],[331,676]],c:'bet',lbl:'叛變！',w:1.2}],
+ fx:[{x:343,y:688,e:'🔥',s:1.1}]},
+
+/*19*/{y:'1582',era:'戰國時代',t:'山崎之戰 — 秀吉的逆襲',
+ d:'正在西邊攻打毛利的羽柴秀吉聞訊，立刻與毛利議和，5天狂奔200公里殺回京都——史稱「中國大返還」。山崎一戰擊潰明智光秀，光秀敗逃途中被殺，只當了「三日天下」。秀吉接收信長霸業。',
+ v:[180,600,240,240],lm:[{x:329,y:704,t:'山崎'},{x:258,y:698,t:'備中高松'}],
+ a:[{m:'toyotomi',n:'羽柴秀吉',x:256,y:682,sz:1.05},{m:'akechi',n:'明智光秀',x:332,y:690,st:'dead',sz:.9},{m:'mori',n:'毛利',x:205,y:690,sz:.7,tag:{t:'議和',c:'#666'}}],
+ ar:[{p:[[270,683],[318,688]],c:'atk',w:1.3,lbl:'中國大返還・5日200km'}],
+ fx:[{x:325,y:691,e:'⚔️'}]},
+
+/*19b*/{y:'1583-84',era:'安土桃山',t:'接班之爭 — 秀吉 vs 家康',
+ d:'信長死後誰接班？1583年賤岳之戰，秀吉擊敗織田家首席家老柴田勝家，接收織田霸權、築起天下第一的大坂城。1584年小牧・長久手之戰對上德川家康——戰場上吃了虧，政治上卻成功逼和，家康低頭臣從。記住這對「天下第一與第二」：16年後，他們的家底將在關原算總帳。',
+ v:[240,560,300,300],lm:[OSA,{x:375,y:678,t:'賤岳'},{x:438,y:712,t:'小牧・長久手'}],
+ a:[{m:'toyotomi',n:'羽柴秀吉',x:322,y:698,sz:1.1,tag:{t:'接收信長霸業',c:'#7a5c12'}},{m:'shibata',n:'柴田勝家',x:398,y:600,st:'dead',sz:.85},{m:'tokugawa',n:'德川家康',x:462,y:700,sz:.95,tag:{t:'戰術贏・政治輸→臣從',c:'#1e5631'}}],
+ ar:[{p:[[332,686],[372,664]],c:'atk',lbl:'賤岳之戰'},{p:[[338,702],[420,706]],c:'atk',lbl:'小牧之戰'},{p:[[452,694],[418,700]],c:'atk',b:-.2}],
+ fx:[{x:378,y:660,e:'⚔️',s:.85},{x:432,y:702,e:'⚔️',s:.85}]},
+
+/*20*/{y:'1585-90',era:'安土桃山',t:'豐臣秀吉統一天下',
+ d:'秀吉就任關白，頒布「惣無事令」：天下禁止私鬥，不服就由我來打你——四國長宗我部降伏（1585）、九州島津降伏（1587），1590年小田原圍城百日滅北條，連東北的伊達政宗都趕來磕頭。從提草鞋的足輕爬到天下人，統一完成！德川家康則被「請」去關東——遠離權力中樞，卻在沃野養出250萬石的實力。',
+ v:FV,lm:[OSA,{x:545,y:684,t:'小田原'},...SEA],
+ ter:[{pts:R.TOYOTOMI,c:'#b08820',t:'豐臣支配下',tx:210,ty:745}],
+ a:[{m:'toyotomi',n:'豐臣秀吉',x:322,y:700,st:'win',sz:1.2},{m:'chosokabe',n:'長宗我部',x:238,y:778,st:'sub',sz:.75},{m:'shimazu',n:'島津',x:115,y:868,st:'sub',sz:.75},{m:'hojo',n:'北條',x:558,y:652,st:'dead',sz:.85},{m:'date',n:'伊達政宗',x:592,y:478,st:'sub',sz:.75},{m:'tokugawa',n:'德川家康',x:580,y:622,sz:.9,tag:{t:'被移封關東',c:'#666'}}],
+ ar:[{p:[[310,714],[252,766]],c:'atk'},{p:[[300,712],[140,845]],c:'atk',b:.12},{p:[[340,694],[538,652]],c:'atk',b:-.15,w:1.2}],
+ fx:[{x:545,y:645,e:'⚔️'}]},
+
+/*21*/{y:'1592-98',era:'安土桃山',t:'朝鮮出兵 — 秀吉的野望與極限',
+ d:'統一日本後，秀吉的野心越過大海：兩度派出十幾萬大軍侵略朝鮮（文祿・慶長之役），目標直指明朝。戰事陷入泥沼，1598年秀吉病逝、全軍撤退。這場消耗戰讓豐臣家臣團徹底分裂——關原之戰的火種，已經點燃。',
+ v:[0,580,420,420],lm:[{x:78,y:764,t:'名護屋',ico:'🏯'}],
+ a:[{m:'toyotomi',n:'豐臣秀吉',x:102,y:728,sz:1.05,tag:{t:'劍指明朝',c:'#7a5c12'}}],
+ ar:[{p:[[72,742],[20,702]],c:'atk',w:1.3,lbl:'渡海侵朝 16萬'},{p:[[26,740],[62,754]],c:'ret',lbl:'1598撤退'}],
+ fx:[{x:42,y:718,e:'🚢',s:1.1}]},
+
+/*22*/{y:'1598-1600',era:'安土桃山',t:'秀吉病逝，天下再裂',
+ d:'秀吉病逝，留下5歲的秀賴與「五大老・五奉行」集體輔政。首席大老家康立刻破壞規矩：私結姻親、收買大名；首席奉行石田三成處處抵制。1600年家康藉口討伐上杉率大軍東行——三成抓準空檔在大阪舉兵！全國大名被迫選邊：東軍 vs 西軍，兩路大軍向中部集結。',
+ v:FV,lm:[OSA,EDO,{x:372,y:668,t:'佐和山'}],
+ ter:[{pts:R.EAST_ARMY,c:'#c8951f',t:'東軍諸大名',tx:565,ty:598},{pts:R.WEST_ARMY,c:'#3f6db3',t:'西軍諸大名',tx:205,ty:725}],
+ a:[{m:'tokugawa',n:'德川家康',x:570,y:628,tm:'e',sz:1.15,tag:{t:'東軍・野心勃勃',c:'#c8951f'}},{m:'ishida',n:'石田三成',x:372,y:650,tm:'w',sz:1.1,tag:{t:'西軍・守護豐臣',c:'#3f6db3'}},{m:'toyotomi',n:'豐臣秀賴',x:318,y:706,sz:.75,tag:{t:'年僅5歲',c:'#666'}}],
+ fx:[{x:470,y:638,e:'⚡',s:1.1}]},
+
+/*22b*/{y:'1600',era:'關原之戰',t:'關原前哨戰 — 遲到的德川主力',
+ d:'三成舉兵後先攻陷家康在京都的據點伏見城，老臣鳥居元忠1800人玉碎殉城；東軍先鋒福島正則等則閃電攻下西軍的岐阜城。家康本隊沿東海道西上；兒子秀忠率3萬8千德川精銳走中山道——卻被真田昌幸區區2千人擋在上田城，趕不上決戰！德川軍最強的主力，就這樣缺席了關原。',
+ v:[300,545,300,300],lm:[{x:345,y:694,t:'伏見',ico:'🏯'},{x:408,y:646,t:'岐阜',ico:'🏯'},{x:484,y:612,t:'上田',ico:'🏯'}],
+ a:[{m:'tokugawa',n:'德川家康',x:545,y:635,tm:'e',sz:1},{m:'tokugawa',n:'德川秀忠',x:512,y:598,tm:'e',sz:.8,tag:{t:'被卡住・遲到！',c:'#d35400'}},{m:'sanada',n:'真田昌幸',x:482,y:596,sz:.75,tag:{t:'2千人擋3萬8',c:'#8a1f1f'}},{m:'fukushima',n:'福島正則',x:432,y:668,tm:'e',sz:.75},{m:'ishida',n:'石田三成',x:370,y:650,tm:'w',sz:.9},{m:'torii',n:'鳥居元忠',x:345,y:680,st:'dead',sz:.7,tag:{t:'伏見玉碎',c:'#7a4a2a'}}],
+ ar:[{p:[[533,644],[460,668]],c:'atk',lbl:'東海道西上'},{p:[[508,608],[492,602]],c:'atk'},{p:[[426,674],[412,664]],c:'atk',lbl:'急襲岐阜'},{p:[[364,662],[349,674]],c:'atk'}],
+ fx:[{x:348,y:690,e:'🔥',s:.8},{x:408,y:658,e:'⚔️',s:.7},{x:490,y:590,e:'💥',s:.65}]},
+
+/*23*/{y:'1600',era:'關原之戰',t:'關原之戰 ① 佈陣',
+ d:'家康聞變立刻回師西上，與三成的西軍在中山道要衝・關原相遇。10月21日清晨大霧，西軍8萬搶先佔據群山、擺出三面包圍東軍7萬的「鶴翼之陣」——教科書上必勝的陣形。但西軍裡一半人心懷鬼胎：松尾山上的小早川秀秋，早已收到家康的密信……',
+ v:[330,600,130,130],
+ lm:[{x:373,y:632,t:'笹尾山',ico:'⛰'},{x:397,y:702,t:'松尾山',ico:'⛰'},{x:418,y:692,t:'南宮山',ico:'⛰'},{x:418,y:650,t:'桃配山',ico:'⛰'}],
+ a:[{m:'ishida',n:'石田三成',x:373,y:644,tm:'w',sz:.95},{m:'shimazu',n:'島津義弘',x:378,y:656,tm:'w',sz:.8},{m:'konishi',n:'小西行長',x:375,y:665,tm:'w',sz:.8},{m:'ukita',n:'宇喜多秀家',x:380,y:674,tm:'w',sz:.85},{m:'otani',n:'大谷吉繼',x:385,y:682,tm:'w',sz:.8},{m:'kobayakawa',n:'小早川秀秋',x:397,y:690,tm:'w',sz:.9,tag:{t:'❓動向不明',c:'#8e44ad'}},{m:'mori',n:'毛利秀元',x:418,y:680,tm:'w',sz:.8},
+    {m:'tokugawa',n:'德川家康',x:415,y:662,tm:'e',sz:1},{m:'kuroda',n:'黑田長政',x:398,y:647,tm:'e',sz:.8},{m:'fukushima',n:'福島正則',x:400,y:669,tm:'e',sz:.8}],
+ raw:`<path d="M373,637 Q353,662 383,687" fill="none" stroke="#3f6db3" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".55"/>
+      <text x="355" y="660" font-size="5.5" fill="#3f6db3" opacity=".9" font-weight="700">鶴翼之陣</text>`},
+
+/*24*/{y:'1600',era:'關原之戰',t:'關原之戰 ② 開戰！',
+ d:'上午8時霧散，全面開打！福島正則猛攻宇喜多隊、黑田長政狙擊石田本陣，戰況一度膠著、西軍甚至略佔上風。但是——西軍真正在作戰的只有3成兵力：南宮山的毛利按兵不動，松尾山的小早川……一動也不動，俯瞰著戰場。',
+ v:[330,600,130,130],
+ lm:[{x:373,y:632,t:'笹尾山',ico:'⛰'},{x:397,y:702,t:'松尾山',ico:'⛰'},{x:418,y:692,t:'南宮山',ico:'⛰'}],
+ a:[{m:'ishida',n:'石田三成',x:373,y:644,tm:'w',sz:.95},{m:'shimazu',n:'島津義弘',x:378,y:656,tm:'w',sz:.8},{m:'konishi',n:'小西行長',x:375,y:665,tm:'w',sz:.8},{m:'ukita',n:'宇喜多秀家',x:380,y:674,tm:'w',sz:.85},{m:'otani',n:'大谷吉繼',x:385,y:682,tm:'w',sz:.8},{m:'kobayakawa',n:'小早川秀秋',x:397,y:690,tm:'w',sz:.9,tag:{t:'……觀望中',c:'#8e44ad'}},{m:'mori',n:'毛利秀元',x:418,y:680,tm:'w',sz:.8,tag:{t:'💤 按兵不動',c:'#666'}},
+    {m:'tokugawa',n:'德川家康',x:415,y:662,tm:'e',sz:1},{m:'kuroda',n:'黑田長政',x:398,y:647,tm:'e',sz:.8},{m:'fukushima',n:'福島正則',x:400,y:669,tm:'e',sz:.8}],
+ ar:[{p:[[395,672],[384,675]],c:'atk'},{p:[[393,649],[380,645]],c:'atk'},{p:[[381,659],[392,665]],c:'atk',b:-.2}],
+ fx:[{x:387,y:670,e:'⚔️',s:.9},{x:384,y:646,e:'⚔️',s:.8},{x:388,y:659,e:'💥',s:.7}]},
+
+/*25*/{y:'1600',era:'關原之戰',t:'關原之戰 ③ 小早川叛變 — 西軍崩潰',
+ d:'正午，家康失去耐心，下令對松尾山開砲「催促」——小早川秀秋終於下定決心，率1萬5千人衝下山，攻向自己的友軍大谷吉繼！大谷奮戰後自盡，西軍全線崩潰：小西、宇喜多潰滅，石田敗走（後被處刑），島津正面殺穿德川軍撤離戰場。決定天下的大戰，6小時分出勝負。',
+ v:[330,600,130,130],
+ lm:[{x:397,y:702,t:'松尾山',ico:'⛰'}],
+ a:[{m:'ishida',n:'石田三成',x:373,y:644,tm:'w',st:'weak',tag:{t:'敗走→處刑',c:'#d35400'},sz:.95},{m:'shimazu',n:'島津義弘',x:378,y:656,tm:'w',sz:.8,tag:{t:'正面突圍！',c:'#3f6db3'}},{m:'konishi',n:'小西行長',x:375,y:665,tm:'w',st:'dead',sz:.8},{m:'ukita',n:'宇喜多秀家',x:380,y:674,tm:'w',st:'dead',sz:.85},{m:'otani',n:'大谷吉繼',x:385,y:682,tm:'w',st:'dead',sz:.8},{m:'kobayakawa',n:'小早川秀秋',x:397,y:690,sz:.9,tag:{t:'倒戈東軍！',c:'#8e44ad'}},
+    {m:'tokugawa',n:'德川家康',x:415,y:662,tm:'e',st:'win',sz:1.05},{m:'fukushima',n:'福島正則',x:400,y:669,tm:'e',sz:.75}],
+ ar:[{p:[[395,686],[389,682]],c:'bet',lbl:'叛變！',w:1.2},{p:[[381,654],[407,667]],c:'ret',lbl:'島津突圍'},{p:[[371,639],[360,626]],c:'ret'}],
+ fx:[{x:387,y:678,e:'💥',s:.9},{x:379,y:669,e:'🔥',s:.8}]},
+
+/*25b*/{y:'1600-03',era:'關原之戰',t:'關原戰後 — 天下大洗牌',
+ d:'勝負只花6小時，清算卻持續3年：石田三成、小西行長在京都六條河原被處刑；宇喜多秀家被流放到孤島八丈島；西軍名義總帥毛利從120萬石砍到37萬、上杉120萬砍到30萬。有趣的是率隊正面突圍的島津——居然毫髮無傷保住全部領地。家康把沒收的632萬石分給功臣，天下已經是德川的形狀。',
+ v:FV,lm:[KYO,EDO,...SEA],
+ a:[{m:'tokugawa',n:'德川家康',x:553,y:638,st:'win',sz:1.15},{m:'ishida',n:'石田三成',x:338,y:686,st:'dead',sz:.85,tag:{t:'六條河原處刑',c:'#c0392b'}},{m:'mori',n:'毛利輝元',x:205,y:680,sz:.8,tag:{t:'120→37萬石',c:'#d35400'}},{m:'uesugi',n:'上杉景勝',x:598,y:495,sz:.8,tag:{t:'120→30萬石',c:'#d35400'}},{m:'shimazu',n:'島津義弘',x:115,y:868,sz:.8,tag:{t:'本領安堵・全身而退',c:'#2f6b4f'}},{m:'ukita',n:'宇喜多秀家',x:622,y:790,sz:.7,tag:{t:'流放八丈島',c:'#666'}}],
+ ar:[{p:[[380,705],[600,778]],c:'ret',b:.18,lbl:'流放孤島'}],
+ fx:[{x:445,y:660,e:'📜',s:.9}]},
+
+/*26a*/{y:'1603-14',era:'江戶時代',t:'江戶開府 — 一個天下，兩個主人',
+ d:'家康就任征夷大將軍、在江戶開創幕府；才兩年就把將軍位讓給兒子秀忠，昭告天下：「將軍是德川世襲的，豐臣別想回來。」但大坂城內，秀賴漸漸長大、金庫滿滿，關原戰敗的失業浪人不斷湧入。1614年家康抓到藉口——方廣寺大鐘銘文「國家安康」把他的名字拆成兩半：「這是詛咒我！」開戰。',
+ v:FV,lm:[EDO,OSA,KYO,...SEA],
+ a:[{m:'tokugawa',n:'德川家康',x:553,y:640,st:'win',sz:1.2,tag:{t:'讓位後幕後操盤',c:'#1e5631'}},{m:'tokugawa',n:'德川秀忠',x:580,y:622,sz:.8,tag:{t:'二代將軍',c:'#666'}},{m:'toyotomi',n:'豐臣秀賴',x:318,y:700,sz:.9,tag:{t:'浪人不斷聚集',c:'#7a5c12'}}],
+ fx:[{x:440,y:665,e:'⚡',s:1.1},{x:348,y:682,e:'🔔',s:.85}]},
+
+/*26b*/{y:'1614',era:'江戶時代',t:'大坂冬之陣 — 真田丸的奇蹟',
+ d:'家康發動20萬大軍包圍大坂城，城內是10萬浪人。德川軍在城南的獨立堡壘「真田丸」前碰得頭破血流——守將正是當年在上田城耍過秀忠的真田昌幸之子・真田幸村！強攻不下，家康改用大砲日夜轟擊天守閣，嚇得城內同意和談。和談條件只有一個：填平大坂城的護城河。——中計了。',
+ v:[250,635,155,155],lm:[{x:306,y:698,t:'大坂城',ico:'🏯'},{x:310,y:726,t:'真田丸'}],
+ a:[{m:'toyotomi',n:'豐臣秀賴',x:318,y:698,sz:.9,tag:{t:'10萬浪人籠城',c:'#7a5c12'}},{m:'sanada',n:'真田幸村',x:325,y:720,sz:.85,tag:{t:'真田丸・大顯神威',c:'#8a1f1f'}},{m:'tokugawa',n:'德川家康',x:341,y:731,sz:1,tag:{t:'20萬大軍',c:'#1e5631'}},{m:'tokugawa',n:'德川秀忠',x:352,y:710,sz:.75}],
+ ar:[{p:[[337,725],[329,721]],c:'atk'},{p:[[348,714],[331,704]],c:'atk'},{p:[[326,682],[321,692]],c:'atk',b:-.2,lbl:'四面包圍'}],
+ fx:[{x:328,y:716,e:'⚔️',s:.8},{x:321,y:705,e:'💥',s:.7},{x:342,y:692,e:'❄️',s:.75}]},
+
+/*26c*/{y:'1615',era:'江戶時代',t:'大坂夏之陣 — 戰國最後之戰',
+ d:'和談墨跡未乾，德川軍就連夜把護城河全部填平——大坂城變成不設防的裸城。隔年夏天最終決戰：真田幸村率3500赤備隊發動死亡突擊，三度衝破家康本陣、逼得73歲的老狐狸一度想切腹！力盡戰死後，連敵軍都尊稱他「日本第一兵」。大坂城陷落炎上，秀賴與母親淀殿自盡——150年的戰國亂世，在此畫下句點。',
+ v:[250,635,155,155],lm:[{x:306,y:698,t:'大坂城',ico:'🏯'},{x:352,y:734,t:'家康本陣'}],
+ a:[{m:'toyotomi',n:'豐臣秀賴',x:318,y:698,st:'dead',sz:.9},{m:'sanada',n:'真田幸村',x:328,y:716,st:'dead',sz:.85,tag:{t:'日本第一兵',c:'#8a1f1f'}},{m:'tokugawa',n:'德川家康',x:344,y:730,st:'win',sz:1,tag:{t:'本陣被衝破・險些切腹',c:'#d35400'}},{m:'tokugawa',n:'德川秀忠',x:354,y:708,sz:.75}],
+ ar:[{p:[[331,719],[341,727]],c:'atk',w:1.2,lbl:'突擊家康本陣！'},{p:[[350,704],[327,700]],c:'atk'},{p:[[336,736],[324,710]],c:'atk',b:-.18}],
+ fx:[{x:319,y:703,e:'🔥',s:1},{x:340,y:726,e:'💥',s:.8}]},
+
+/*27*/{y:'1615-1853',era:'江戶時代',t:'天下太平 — 武士時代的黃昏',
+ d:'德川幕府用「參勤交代」制度牢牢拴住全國大名，並實施鎖國。260年間再無大戰，武士收刀變成官僚，江戶成長為百萬人口的大都市——直到1853年黑船來航，才掀開歷史的下一頁。',
+ v:[10,10,980,980],lm:[EDO,KYO,...SEA],
+ ter:[{pts:R.TOKUGAWA_ALL,c:'#1e5631',t:'德川幕府天下泰平',tx:300,ty:645}],
+ a:[{m:'tokugawa',n:'德川幕府',x:556,y:626,st:'win',sz:1.35}],
+ fx:[{x:620,y:560,e:'🕊️'},{x:420,y:610,e:'🌸',s:.9},{x:250,y:660,e:'🌸',s:.7}]}
+];
+
+/* ================= 引擎 ================= */
+const $=id=>document.getElementById(id);
+const gTer=$('gTer'),gLm=$('gLm'),gAr=$('gArrows'),gFx=$('gFx'),gAc=$('gActors'),dyn=$('dyn'),map=$('map');
+let cur=0,playing=false,timer=null,vAnim=null,curView=FV.slice();
+
+function tweenView(t,instant){
+  if(vAnim)cancelAnimationFrame(vAnim);
+  if(instant){curView=t.slice();map.setAttribute('viewBox',t.join(' '));return}
+  const s=curView.slice(),t0=performance.now(),D=950;
+  const step=n=>{let p=Math.min(1,(n-t0)/D);p=p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;
+    curView=s.map((v,i)=>v+(t[i]-v)*p);
+    map.setAttribute('viewBox',curView.join(' '));
+    if(p<1)vAnim=requestAnimationFrame(step)};
+  vAnim=requestAnimationFrame(step);
+}
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+function smoothClosed(pts){
+  const n=pts.length;let d=`M${pts[0][0]},${pts[0][1]} `;
+  for(let i=0;i<n;i++){const p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n],p3=pts[(i+2)%n];
+    const c1=[p1[0]+(p2[0]-p0[0])/6,p1[1]+(p2[1]-p0[1])/6],c2=[p2[0]-(p3[0]-p1[0])/6,p2[1]-(p3[1]-p1[1])/6];
+    d+=`C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0]},${p2[1]} `}
+  return d+'Z';
+}
+function terSVG(t,k){
+  return `<g class="ter"><path d="${smoothClosed(t.pts)}" fill="${t.c}" fill-opacity=".22" stroke="${t.c}" stroke-opacity=".65" stroke-width="${(2*k).toFixed(2)}" stroke-dasharray="${(6*k).toFixed(1)} ${(5*k).toFixed(1)}"/>
+    ${t.t?`<text class="alabel" x="${t.tx}" y="${t.ty}" text-anchor="middle" font-size="${(15*k).toFixed(1)}" fill="${t.c}" style="stroke:rgba(255,255,255,.85)">${esc(t.t)}</text>`:''}</g>`;
+}
+function actorSVG(a,k){
+  const col=CLR[a.m]||'#444',s=(k*(a.sz||1)*1.12).toFixed(3);
+  const w=a.n.length*12.5+12;
+  let bg='#faf6ea',bd=col;
+  if(a.tm==='e'){bg='#ffe9b8';bd='#c8951f'} if(a.tm==='w'){bg='#dce7fa';bd='#3f6db3'}
+  let tag='';
+  if(a.st==='dead')tag=tagSVG('滅亡','#c0392b','#fff');
+  else if(a.st==='sub')tag=tagSVG('🏳 臣服','#777','#fff');
+  if(a.tag)tag=tagSVG(a.tag.t,a.tag.c,'#fff');
+  const dead=a.st==='dead';
+  return `<g class="actor${dead?' deadA':''}" transform="translate(${a.x} ${a.y}) scale(${s})" filter="url(#sh)">
+    ${a.st==='win'?`<circle r="25" fill="none" stroke="#e6b73c" stroke-width="3.5"/><text y="-31" text-anchor="middle" font-size="20">👑</text>`:''}
+    <g ${dead?'filter="url(#gray)" opacity=".5"':''}>${MON[a.m]()}</g>
+    ${dead?`<g stroke="#c0392b" stroke-width="4.5" stroke-linecap="round" opacity=".95"><line x1="-13" y1="-13" x2="13" y2="13"/><line x1="13" y1="-13" x2="-13" y2="13"/></g>`:''}
+    <rect x="${-w/2}" y="22" width="${w}" height="17" rx="4.5" fill="${bg}" stroke="${bd}" stroke-width="1.4" ${dead?'opacity=".75"':''}/>
+    <text y="35" text-anchor="middle" font-size="12" font-weight="800" fill="#1d2026">${esc(a.n)}</text>
+    ${tag}</g>`;
+}
+function tagSVG(t,bg,fg){
+  const w=t.length*11.5+12;
+  return `<g transform="translate(0,-30)"><rect x="${-w/2}" y="-11" width="${w}" height="15.5" rx="7.5" fill="${bg}" opacity=".93"/>
+    <text y="1" text-anchor="middle" font-size="10.5" font-weight="800" fill="${fg}">${esc(t)}</text></g>`;
+}
+function arrowSVG(ar,k){
+  const[p1,p2]=ar.p,dx=p2[0]-p1[0],dy=p2[1]-p1[1],len=Math.hypot(dx,dy)||1;
+  const b=(ar.b===undefined?0.18:ar.b)*len;
+  const cx=(p1[0]+p2[0])/2-dy/len*b, cy=(p1[1]+p2[1])/2+dx/len*b;
+  const w=((ar.w||1)*5.5*k).toFixed(2);
+  const colors={atk:'#d64541',bet:'#8e44ad',ret:'#3f6db3'};
+  const cls=ar.c==='ret'?'retA':'draw';
+  let s=`<path d="M${p1[0]},${p1[1]} Q${cx},${cy} ${p2[0]},${p2[1]}" pathLength="100" fill="none"
+    stroke="${colors[ar.c]}" stroke-width="${w}" stroke-linecap="round" opacity=".9"
+    marker-end="url(#m-${ar.c})" class="${cls}"/>`;
+  if(ar.lbl)s+=`<text class="alabel" x="${cx}" y="${cy-7*k}" text-anchor="middle" font-size="${(12.5*k).toFixed(1)}" fill="${colors[ar.c]}">${esc(ar.lbl)}</text>`;
+  return s;
+}
+function lmSVG(l,k){
+  if(l.sea)return `<text x="${l.x}" y="${l.y}" text-anchor="middle" font-size="${(20*k).toFixed(1)}" fill="#7e98ab" opacity=".8" letter-spacing="6" font-family="serif">${l.t}</text>`;
+  return `<g opacity=".9">${l.ico?`<text x="${l.x}" y="${l.y-3*k}" text-anchor="middle" font-size="${(14*k).toFixed(1)}">${l.ico}</text>`:''}
+    <text class="alabel" x="${l.x}" y="${l.y+11*k}" text-anchor="middle" font-size="${(11*k).toFixed(1)}" fill="#5a4f35" style="stroke:rgba(255,255,255,.85)">${l.t}</text></g>`;
+}
+function build(s){
+  const k=s.v[2]/1000;
+  gTer.innerHTML=(s.ter||[]).map(t=>terSVG(t,k)).join('');
+  gLm.innerHTML=(s.lm||[]).map(l=>lmSVG(l,k)).join('');
+  gAr.innerHTML=(s.ar||[]).map(a=>arrowSVG(a,k)).join('');
+  gFx.innerHTML=((s.fx||[]).map(f=>`<text class="fx" x="${f.x}" y="${f.y}" text-anchor="middle" font-size="${(30*k*(f.s||1)).toFixed(1)}">${f.e}</text>`).join(''))+(s.raw||'');
+  gAc.innerHTML=(s.a||[]).map(a=>actorSVG(a,k)).join('');
+}
+function setScene(i,instant){
+  cur=Math.max(0,Math.min(SCENES.length-1,i));
+  const s=SCENES[cur];
+  $('sceneYear').textContent=s.y;
+  $('sceneTitle').textContent=s.t;
+  $('sceneDesc').textContent=s.d;
+  $('eraChip').textContent=s.era;
+  $('sceneNum').textContent=(cur+1)+' / '+SCENES.length;
+  [...$('dots').children].forEach((d,j)=>{d.className=j===cur?'on':(j<cur?'past':'')});
+  /* 登場人物年齡表 */
+  const yr=parseInt((s.y.match(/\d{3,4}/)||[])[0]);
+  let rows='';
+  (s.a||[]).forEach(a=>{const b=BIRTH[a.n];if(!b||!yr)return;
+    const st=a.st==='dead'?' ✕':(a.st==='win'?' 👑':'');
+    rows+=`<div class="crow"><span class="cdot" style="background:${CLR[a.m]||'#666'}"></span><span>${a.n}${st}</span><span class="cage">${yr-b}歲</span></div>`});
+  $('castCard').style.display=rows?'':'none';
+  $('castList').innerHTML=rows;
+  tweenView(s.v,instant);
+  if(instant){build(s);return}
+  dyn.classList.add('hide');
+  setTimeout(()=>{build(s);dyn.classList.remove('hide')},260);
+  resetProg();
+}
+/* 播放 */
+const prog=$('prog');
+function resetProg(){
+  prog.style.transition='none';prog.style.width='0';
+  if(playing){requestAnimationFrame(()=>{requestAnimationFrame(()=>{
+    prog.style.transition='width 9s linear';prog.style.width='100%'})})}
+}
+function play(on){
+  playing=on===undefined?!playing:on;
+  $('btnPlay').textContent=playing?'⏸ 暫停':'▶ 自動播放';
+  clearInterval(timer);
+  if(playing){
+    if(cur===SCENES.length-1)setScene(0);
+    resetProg();
+    timer=setInterval(()=>{
+      if(cur>=SCENES.length-1){play(false);prog.style.width='0';return}
+      setScene(cur+1);
+    },9000);
+  }else{prog.style.transition='none';prog.style.width='0'}
+}
+$('btnPrev').onclick=()=>{play(false);setScene(cur-1)};
+$('btnNext').onclick=()=>{play(false);setScene(cur+1)};
+$('btnPlay').onclick=()=>play();
+SCENES.forEach((s,i)=>{
+  const b=document.createElement('button');
+  b.title=s.y+'｜'+s.t;
+  b.onclick=()=>{play(false);setScene(i)};
+  $('dots').appendChild(b);
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'){play(false);setScene(cur+1)}
+  if(e.key==='ArrowLeft'){play(false);setScene(cur-1)}
+  if(e.key===' '){e.preventDefault();play()}
+});
+setScene(0,true);
+</script>
+</body>
+</html>
